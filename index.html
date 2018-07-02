@@ -1,0 +1,106 @@
+<html>
+  <head>
+    <!-- load p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.6.1/p5.js"></script>
+    <!-- Load TensorFlow.js -->
+    <script src="https://unpkg.com/@tensorflow/tfjs"></script>
+    <!-- Load Posenet -->
+    <script src="https://unpkg.com/@tensorflow-models/posenet"></script>
+  </head>
+  <body style="margin: 0;">
+    <!-- holder for p5.js canvas: -->
+    <div id="canvas-holder"></div>
+    <!-- element for capturing the webcam: -->
+    <video id="video" autoplay width="500" height="500" style="display: none;"></video>
+
+    <script>
+      // global vars:
+      var video = null;
+      var posenetModel = null;
+      var currentPose = null;
+      var webcamStreaming = false;
+      var poseUpdated = true;
+      var posenetRunning = false;
+      // posenet params:
+      const imageScaleFactor = 0.33;
+      const flipHorizontal = true;
+      const outputStride = 16;
+
+
+      // open webcam stream and initialize posenet model:
+      var video = document.getElementById('video');
+      if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        console.log('opening webcam stream...');
+        navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+          // webcam ready
+          video.src = window.URL.createObjectURL(stream);
+          video.play();
+          webcamStreaming = true;
+          // initialize posenet model
+          console.log('webcam ready, initializing posenet model...')
+          posenet.load().then(function(net) {
+            posenetModel = net;
+            posenetRunning = true;
+          });
+        });
+      }
+
+
+      // p5.js setup:
+      function setup() {
+        var canvas = createCanvas(windowWidth, windowHeight);
+        canvas.parent('canvas-holder');
+      }
+
+      function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+      }
+
+      // p5.js loop:
+      function draw() {
+
+        // overlay dark transparent background
+        background('rgba(0,0,0,0.1)');
+
+        // draw stuff using pose data:
+        if (webcamStreaming && posenetRunning && currentPose) {
+          // lets draw a circle on each keypoint
+          for (let keypoint of currentPose.keypoints) {
+              pos = keypoint.position;
+              // apply some scaling
+              var x = (pos.x / 500 * 0.75 + 0.125) * windowWidth;
+              var y = pos.y / 500 * windowHeight;
+              ellipse(x, y, 10);
+          }
+        }
+
+        // get pose data:
+        if (webcamStreaming && posenetRunning) {
+          if (poseUpdated) {
+            poseUpdated = false;
+
+            // get next pose frame
+            posenetModel.estimateSinglePose(
+                video,
+                imageScaleFactor,
+                flipHorizontal,
+                outputStride
+            ).then(
+              function (pose) {
+                //console.log(pose);
+                currentPose = pose;
+                poseUpdated = true;
+              }
+            ).catch(
+              function (e) {
+                //console.log(e);
+                poseUpdated = true;
+              }
+            );
+          }
+        }
+
+      } // end draw
+    </script>
+  </body>
+</html>
